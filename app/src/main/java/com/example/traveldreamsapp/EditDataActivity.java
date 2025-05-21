@@ -2,7 +2,6 @@ package com.example.traveldreamsapp;
 
 import android.util.Log;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
@@ -26,7 +25,7 @@ import java.io.IOException;
 
 public class EditDataActivity extends AppCompatActivity {
 
-    private EditText etName, etSurname, etEmail, etPhone;
+    private EditText etName, etSurname, etAddress, etPhone;
     private Button btnSaveData;
 
     @Override
@@ -36,36 +35,57 @@ public class EditDataActivity extends AppCompatActivity {
 
         etName = findViewById(R.id.et_name);
         etSurname = findViewById(R.id.et_surname);
-        etEmail = findViewById(R.id.et_email);
+        etAddress = findViewById(R.id.et_address);
         etPhone = findViewById(R.id.et_phone);
         btnSaveData = findViewById(R.id.btn_save_data);
 
         // Recibir datos desde PerfilActivity
         Intent intent = getIntent();
-        etName.setText(intent.getStringExtra("name"));
-        etSurname.setText(intent.getStringExtra("surname"));
-        etEmail.setText(intent.getStringExtra("email"));
-        etPhone.setText(intent.getStringExtra("phone"));
+        String nameExtra = intent.getStringExtra("name");
+        String surnameExtra = intent.getStringExtra("surname");
+        String addressExtra = intent.getStringExtra("address");
+        String phoneExtra = intent.getStringExtra("phone");
+
+        etName.setText(nameExtra);
+        etSurname.setText(surnameExtra);
+        etAddress.setText(addressExtra);
+        etPhone.setText(phoneExtra);
+
+        // Borrar texto al enfocar si coincide con el original
+        setClearOnFocus(etName, nameExtra);
+        setClearOnFocus(etSurname, surnameExtra);
+        setClearOnFocus(etAddress, addressExtra);
+        setClearOnFocus(etPhone, phoneExtra);
 
         btnSaveData.setOnClickListener(v -> {
             String name = etName.getText().toString().trim();
             String surname = etSurname.getText().toString().trim();
-            String email = etEmail.getText().toString().trim();
+            String address = etAddress.getText().toString().trim();
             String phone = etPhone.getText().toString().trim();
 
-            if (name.isEmpty() || surname.isEmpty() || email.isEmpty()) {
-                Toast.makeText(EditDataActivity.this, "Nombre, Apellido y Email son obligatorios", Toast.LENGTH_SHORT).show();
+            if (name.isEmpty() || surname.isEmpty() || address.isEmpty()) {
+                Toast.makeText(EditDataActivity.this, "Nombre, Apellido y dirección son obligatorios", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            actualizarPerfil(name, surname, email, phone);
+            actualizarPerfil(name, surname, address, phone);
         });
     }
 
-    // Interceptor para agregar token
+    private void setClearOnFocus(EditText editText, String originalValue) {
+        editText.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus && editText.getText().toString().equals(originalValue)) {
+                editText.setText("");
+            }
+        });
+    }
+
     public static class AuthInterceptor implements Interceptor {
         private final String token;
-        public AuthInterceptor(String token) { this.token = token; }
+        public AuthInterceptor(String token) {
+            this.token = token;
+        }
+
         @Override
         public Response intercept(Chain chain) throws IOException {
             Request original = chain.request();
@@ -78,28 +98,26 @@ public class EditDataActivity extends AppCompatActivity {
         }
     }
 
-    // Interfaz Retrofit para actualizar perfil
     public interface ApiService {
-        @PUT("api/v1/user/profile/") // Cambiar según tu endpoint real
+        @PUT("api/v1/user/profile/")
         Call<Void> updateUserProfile(@Body UpdateProfileRequest body);
     }
 
-    // Modelo para request de actualización
     public static class UpdateProfileRequest {
         private String nombre;
         private String apellido;
-        private String email;
+        private String direccion;
         private String telefono;
 
-        public UpdateProfileRequest(String nombre, String apellido, String email, String telefono) {
+        public UpdateProfileRequest(String nombre, String apellido, String direccion, String telefono) {
             this.nombre = nombre;
             this.apellido = apellido;
-            this.email = email;
+            this.direccion = direccion;
             this.telefono = telefono;
         }
     }
 
-    private void actualizarPerfil(String nombre, String apellido, String email, String telefono) {
+    private void actualizarPerfil(String nombre, String apellido, String direccion, String telefono) {
         SessionManager sessionManager = new SessionManager(this);
         String token = sessionManager.getToken();
         Log.d("EditDataActivity", "Token leído de SharedPreferences: " + token);
@@ -114,14 +132,14 @@ public class EditDataActivity extends AppCompatActivity {
                 .build();
 
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("https://dreamtravel.pythonanywhere.com/")  // Tu URL base
+                .baseUrl("https://dreamtravel.pythonanywhere.com/")
                 .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
 
         ApiService apiService = retrofit.create(ApiService.class);
 
-        UpdateProfileRequest request = new UpdateProfileRequest(nombre, apellido, email, telefono);
+        UpdateProfileRequest request = new UpdateProfileRequest(nombre, apellido, direccion, telefono);
 
         Call<Void> call = apiService.updateUserProfile(request);
 
@@ -130,11 +148,10 @@ public class EditDataActivity extends AppCompatActivity {
             public void onResponse(Call<Void> call, retrofit2.Response<Void> response) {
                 if (response.isSuccessful()) {
                     Toast.makeText(EditDataActivity.this, "Perfil actualizado correctamente", Toast.LENGTH_SHORT).show();
-                    // Retornar datos al PerfilActivity para actualizar UI
                     Intent resultIntent = new Intent();
                     resultIntent.putExtra("name", nombre);
                     resultIntent.putExtra("surname", apellido);
-                    resultIntent.putExtra("email", email);
+                    resultIntent.putExtra("address", direccion);
                     resultIntent.putExtra("phone", telefono);
                     setResult(RESULT_OK, resultIntent);
                     finish();
